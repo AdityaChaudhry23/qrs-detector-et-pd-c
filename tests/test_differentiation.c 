@@ -1,0 +1,75 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+#include "qrs_detector.h"
+
+static int read_vector(const char *path, double **buf, size_t *len)
+{
+    FILE *fp = fopen(path, "r");
+    if (!fp) { perror(path); return -1; }
+
+    size_t cap = 1 << 16, n = 0;               /* start @64 k */
+    double *v  = malloc(cap * sizeof *v);
+    if (!v) { fclose(fp); return -1; }
+
+    while (fscanf(fp, "%lf", &v[n]) == 1) {
+        if (++n == cap) {
+            cap <<= 1;
+            double *tmp = realloc(v, cap * sizeof *v);
+            if (!tmp) { free(v); fclose(fp); return -1; }
+            v = tmp;
+        }
+    }
+    fclose(fp);
+    *buf = v;
+    *len = n;
+    return 0;
+}
+
+int main(void)
+{
+    double *x = NULL, *y_c = NULL, *y_py = NULL;
+    size_t   N;
+
+    if (read_vector("test_results/bandpass.dat", &x, &N))   return 1;
+    y_c  = calloc(N, sizeof *y_c);
+    y_py = calloc(N, sizeof *y_py);
+    if (!y_c || !y_py)                                     return 1;
+
+    /* run C derivative */
+    derivative_filter(x, y_c, N);
+
+    /* load Python reference */
+    if (read_vector("test_results/python_derivative.dat", &y_py, &N)) return 1;
+
+    /* metrics */
+    double mse = 0.0, num = 0.0, den_c = 0.0, den_p = 0.0, maxerr = 0.0;
+    for (size_t i = 0; i < N; ++i) {
+        double d  = y_c[i] - y_py[i];
+        mse      += d*d;
+        maxerr    = fabs(d) > maxerr ? fabs(d) : maxerr;
+        num      += y_c[i]*y_py[i];
+        den_c    += y_c[i]*y_c[i];
+        den_p    += y_py[i]*y_py[i];
+    }
+    mse /= N;
+    double corr = num / sqrt(den_c*den_p);
+    double snr  = 10.0 * log10(den_p / (mse*N));           /* signal / noise */
+    double psnr = 10.0 * log10(1.0 / mse);                 /* peak assumed 1 */
+
+    printf("\n📊 Derivative Validation Results:\n"
+           "MSE        : %.6g\n"
+           "CORR       : %.4f\n"
+           "SNR  (dB)  : %.4f\n"
+           "PSNR (dB)  : %.4f\n"
+           "Max |diff| : %.6g\n",
+           mse, corr, snr, psnr, maxerr);
+
+    int pass = (mse  < 1e-11) &&
+               (corr > 0.9999) &&
+               (snr  > 5.0);
+    puts(pass ? "\n✅  OVERALL: PASS\n" : "\n❌  OVERALL: FAIL\n");
+
+    free(x); free(y_c); free(y_py);
+    return pass ? 0 : 2;
+}

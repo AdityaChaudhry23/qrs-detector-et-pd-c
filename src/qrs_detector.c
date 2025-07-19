@@ -1,7 +1,7 @@
 #include <math.h>
 #include <stdlib.h>
 #include <stdio.h>
-
+#include <stddef.h>
 #define PI 3.14159265359
 
 void bandpass_filter(double* input, double* output, int input_len, int filter_len, double fs) {
@@ -91,15 +91,26 @@ void bandpass_filter(double* input, double* output, int input_len, int filter_le
     free(h_band);
 }
 
-void differentiate_signal(double* input, double* output, int len) {
-    // Assumes fs = 360 Hz and uses the derivative coefficients from Pan-Tompkins paper
-    // y(nT) = [2x(nT) + x(nT-T) - x(nT-3T) - 2x(nT-4T)] / 8T
-    for (int i = 4; i < len; i++) {
-        output[i] = (2 * input[i] + input[i - 1] - input[i - 3] - 2 * input[i - 4]) / 8.0;
+int derivative_filter(const double *input,
+                      double       *output,
+                      size_t        len)
+{
+    if (!input || !output || len == 0) return -1;          /* null‑guard  */
+    if (len < 5) {                                         /* need 5 pts  */
+        for (size_t i = 0; i < len; ++i) output[i] = 0.0;
+        return 0;
     }
 
-    // Set first few samples to 0 since they don't have enough history
-    for (int i = 0; i < 4; i++) {
-        output[i] = 0.0;
+    /* leading zeros */
+    for (size_t i = 0; i < 4; ++i) output[i] = 0.0;
+
+    /* core loop – compiler will unroll & vectorise at ‑O3 */
+    for (size_t n = 4; n < len; ++n) {
+        output[n] = ( 2.0*input[n]
+                    + 1.0*input[n-1]
+                    - 1.0*input[n-3]
+                    - 2.0*input[n-4]) * 0.125;             /* ÷8 = ×0.125 */
     }
+
+    return 0;                                             /* success     */
 }

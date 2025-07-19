@@ -1,60 +1,94 @@
-# Compiler and flags
-CC = clang
-CFLAGS = -Wall -Wextra -Iincludes -O0 -g
-LDFLAGS = -lm
+# ───────────────────────────────
+#  Toolchain & global switches
+# ───────────────────────────────
+CC        ?= clang
+DEBUG     ?= 0                    # use:  make DEBUG=1 all
 
-# Directories
-SRC_DIR = src
-TEST_DIR = tests
-BUILD_DIR = build
-RESULTS_DIR = results
-PLOT_DIR = plot
-TEST_DATA_DIR = test_data
-TEST_RESULTS_DIR = test_results
-WFDB_DIR = external/wfdb
-WFDB_INC = $(WFDB_DIR)/include
-WFDB_LIB = $(WFDB_DIR)/lib
-# Source files
-SRC = $(wildcard $(SRC_DIR)/*.c)
+CFLAGS    := -Wall -Wextra -Iincludes -Iexternal/wfdb/include
+LDFLAGS   := -Lexternal/wfdb/lib -lwfdb -lm
 
-# Default target
+ifeq ($(DEBUG),1)
+  CFLAGS  += -O0 -g
+else
+  CFLAGS  += -O3 -march=native
+endif
+
+# ───────────────────────────────
+#  Directory layout
+# ───────────────────────────────
+SRC_DIR          := src
+BUILD_DIR        := build
+TEST_DIR         := tests
+RESULTS_DIR      := results
+TEST_DATA_DIR    := test_data
+TEST_RESULTS_DIR := test_results
+PLOT_DIR         := plot
+
+# ───────────────────────────────
+#  Source → object lists
+# ───────────────────────────────
+SRC   := $(wildcard $(SRC_DIR)/*.c)
+OBJ   := $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(SRC))
+
+# ───────────────────────────────
+#  Default target
+# ───────────────────────────────
+.PHONY: all
 all: $(BUILD_DIR)/qrs_detector
 
-# Build main detector (if needed)
-$(BUILD_DIR)/qrs_detector: $(SRC)
-	@mkdir -p $(BUILD_DIR)
+# ───────────────────────────────
+#  Build rules
+# ───────────────────────────────
+# 1. object files
+$(BUILD_DIR)/%.o: $(SRC_DIR)/%.c | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+# 2. final executable
+$(BUILD_DIR)/qrs_detector: $(OBJ)
 	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
 
-# 1. Generate synthetic ECG test data (Python)
+# create build dir on‑the‑fly
+$(BUILD_DIR):
+	@mkdir -p $@
+
+# ───────────────────────────────
+#  Python helpers & validation
+# ───────────────────────────────
+.PHONY: generate-synthetic-data run-bandpass-test validate-bandpass
 generate-synthetic-data:
-	@echo "[PY] Generating synthetic ECG data..."
+	@echo "[PY] Generating synthetic ECG data…"
 	python3 $(TEST_DATA_DIR)/generate_and_filter_ecg.py
 
-# 2. Run C-based bandpass filter on synthetic input
-run-bandpass-test:
-	@echo "[C] Running bandpass filter test on synthetic ECG..."
-	@mkdir -p $(BUILD_DIR)
-	$(CC) $(TEST_DIR)/test_synthetic_bandpass.c $(SRC_DIR)/qrs_detector.c -Iincludes -o $(BUILD_DIR)/test_synthetic_bandpass $(LDFLAGS)
+run-bandpass-test: $(BUILD_DIR)
+	@echo "[C] Running band‑pass filter test on synthetic ECG…"
+	$(CC) $(TEST_DIR)/test_synthetic_bandpass.c \
+	      $(SRC_DIR)/qrs_detector.c $(CFLAGS) $(LDFLAGS) \
+	      -o $(BUILD_DIR)/test_synthetic_bandpass
 	./$(BUILD_DIR)/test_synthetic_bandpass
 
-# Compare C vs Python filtered ECG
 validate-bandpass:
-	python3 tests/validate_bandpass.py
- 
+	python3 $(TEST_DIR)/validate_bandpass.py
 
-# Plot raw (MIT-BIH) ECG data
+# ───────────────────────────────
+#  WFDB record 201/203 tests
+# ───────────────────────────────
+.PHONY: test-wfdb-bandpass
+test-wfdb-bandpass: $(BUILD_DIR)
+	$(CC) $(TEST_DIR)/test_bandpass.c $(SRC_DIR)/qrs_detector.c \
+	      $(CFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/test_bandpass
+	LD_LIBRARY_PATH=external/wfdb/lib ./$(BUILD_DIR)/test_bandpass
+
+# ───────────────────────────────
+#  Plot helpers
+# ───────────────────────────────
+.PHONY: plot-raw-py
 plot-raw-py:
 	python3 $(PLOT_DIR)/plot_raw_ecg.py
 
-# Clean build and results
+# ───────────────────────────────
+#  House‑keeping
+# ───────────────────────────────
+.PHONY: clean
 clean:
-	rm -rf $(BUILD_DIR)/*.o $(BUILD_DIR)/* $(RESULTS_DIR)/*.dat
-
-# 3. Run bandpass test on WFDB record 201 using libwfdb
-test-wfdb-bandpass:
-	@mkdir -p $(BUILD_DIR)
-	$(CC) $(TEST_DIR)/test_bandpass.c src/qrs_detector.c -Iincludes -I$(WFDB_INC) -L$(WFDB_LIB) -lwfdb -lm -o $(BUILD_DIR)/test_bandpass
-	LD_LIBRARY_PATH=$(WFDB_LIB) ./$(BUILD_DIR)/test_bandpass
-
-
-
+	@echo "[CLEAN] Removing build, results and test artefacts…"
+	@rm -rf $(BUILD_DIR) $(RESULTS_DIR)/*.dat $(TEST_RESULTS_DIR)/*.dat
