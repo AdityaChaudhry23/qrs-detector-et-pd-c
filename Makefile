@@ -1,94 +1,43 @@
-# ───────────────────────────────
-#  Toolchain & global switches
-# ───────────────────────────────
-CC        ?= clang
-DEBUG     ?= 0                    # use:  make DEBUG=1 all
+# Compiler and Flags
+CC = clang
+CFLAGS = -Wall -O2 -Iincludes -Iexternal/wfdb/include
+LDFLAGS = -Lexternal/wfdb/lib -lwfdb -lm
 
-CFLAGS    := -Wall -Wextra -Iincludes -Iexternal/wfdb/include
-LDFLAGS   := -Lexternal/wfdb/lib -lwfdb -lm
+# Directories
+SRC_DIR = src
+OBJ_DIR = build
+BIN = $(OBJ_DIR)/qrs_detector
 
-ifeq ($(DEBUG),1)
-  CFLAGS  += -O0 -g
-else
-  CFLAGS  += -O3 -march=native
-endif
+# Source and Object files
+SRCS = $(SRC_DIR)/main.c $(SRC_DIR)/qrs_detector.c
+OBJS = $(SRCS:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
 
-# ───────────────────────────────
-#  Directory layout
-# ───────────────────────────────
-SRC_DIR          := src
-BUILD_DIR        := build
-TEST_DIR         := tests
-RESULTS_DIR      := results
-TEST_DATA_DIR    := test_data
-TEST_RESULTS_DIR := test_results
-PLOT_DIR         := plot
+# Default target
+all: $(BIN)
 
-# ───────────────────────────────
-#  Source → object lists
-# ───────────────────────────────
-SRC   := $(wildcard $(SRC_DIR)/*.c)
-OBJ   := $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(SRC))
+# Link final binary
+$(BIN): $(OBJS)
+	@mkdir -p $(OBJ_DIR)
+	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
+	@echo "Build complete: $@"
 
-# ───────────────────────────────
-#  Default target
-# ───────────────────────────────
-.PHONY: all
-all: $(BUILD_DIR)/qrs_detector
-
-# ───────────────────────────────
-#  Build rules
-# ───────────────────────────────
-# 1. object files
-$(BUILD_DIR)/%.o: $(SRC_DIR)/%.c | $(BUILD_DIR)
+# Compile source files to object files
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
+	@mkdir -p $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-# 2. final executable
-$(BUILD_DIR)/qrs_detector: $(OBJ)
-	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
-
-# create build dir on‑the‑fly
-$(BUILD_DIR):
-	@mkdir -p $@
-
-# ───────────────────────────────
-#  Python helpers & validation
-# ───────────────────────────────
-.PHONY: generate-synthetic-data run-bandpass-test validate-bandpass
-generate-synthetic-data:
-	@echo "[PY] Generating synthetic ECG data…"
-	python3 $(TEST_DATA_DIR)/generate_and_filter_ecg.py
-
-run-bandpass-test: $(BUILD_DIR)
-	@echo "[C] Running band‑pass filter test on synthetic ECG…"
-	$(CC) $(TEST_DIR)/test_synthetic_bandpass.c \
-	      $(SRC_DIR)/qrs_detector.c $(CFLAGS) $(LDFLAGS) \
-	      -o $(BUILD_DIR)/test_synthetic_bandpass
-	./$(BUILD_DIR)/test_synthetic_bandpass
-
-validate-bandpass:
-	python3 $(TEST_DIR)/validate_bandpass.py
-
-# ───────────────────────────────
-#  WFDB record 201/203 tests
-# ───────────────────────────────
-.PHONY: test-wfdb-bandpass
-test-wfdb-bandpass: $(BUILD_DIR)
-	$(CC) $(TEST_DIR)/test_bandpass.c $(SRC_DIR)/qrs_detector.c \
-	      $(CFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/test_bandpass
-	LD_LIBRARY_PATH=external/wfdb/lib ./$(BUILD_DIR)/test_bandpass
-
-# ───────────────────────────────
-#  Plot helpers
-# ───────────────────────────────
-.PHONY: plot-raw-py
-plot-raw-py:
-	python3 $(PLOT_DIR)/plot_raw_ecg.py
-
-# ───────────────────────────────
-#  House‑keeping
-# ───────────────────────────────
-.PHONY: clean
+# Clean build artifacts
 clean:
-	@echo "[CLEAN] Removing build, results and test artefacts…"
-	@rm -rf $(BUILD_DIR) $(RESULTS_DIR)/*.dat $(TEST_RESULTS_DIR)/*.dat
+	rm -rf $(OBJ_DIR)/*.o $(BIN)
+	@echo "Cleaned build artifacts."
+
+# Run the binary
+run: $(BIN)
+	LD_LIBRARY_PATH=external/wfdb/lib ./$(BIN)
+
+plot-raw-and-filtered:
+	@echo "Plotting raw and filtered ECG signals..."
+	@python3 plot/plot_raw_and_filtered.py
+
+
+.PHONY: all clean run
