@@ -35,13 +35,16 @@ clean:
 run: $(BIN)
 	LD_LIBRARY_PATH=external/wfdb/lib ./$(BIN)
 
-plot-raw-and-filtered:
+plot-stage-1:
 	@echo "Plotting raw and filtered ECG signals..."
-	@python3 plot/plot_raw_and_filtered.py
+	@python3 plot/plot_pipeline_stage_1.py
 
-plot-raw-filtered-derivative:
+plot-stage-2:
 	@echo "Plotting raw, filtered, and derivative ECG signals..."
-	@python3 plot/plot_raw_filtered_and_derivative.py
+	@python3 plot/plot_pipeline_stage_2.py
 
+plot-stage-3:
+	@echo "Plotting raw, filtered, and derivative ECG signals..."
+	@python3 plot/plot_pipeline_stage_3.py
 
 .PHONY: all clean run
