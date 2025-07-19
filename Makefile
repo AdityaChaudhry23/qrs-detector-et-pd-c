@@ -11,7 +11,9 @@ RESULTS_DIR = results
 PLOT_DIR = plot
 TEST_DATA_DIR = test_data
 TEST_RESULTS_DIR = test_results
-
+WFDB_DIR = external/wfdb
+WFDB_INC = $(WFDB_DIR)/include
+WFDB_LIB = $(WFDB_DIR)/lib
 # Source files
 SRC = $(wildcard $(SRC_DIR)/*.c)
 
@@ -37,7 +39,7 @@ run-bandpass-test:
 
 # Compare C vs Python filtered ECG
 validate-bandpass:
-	python3 test_results/validate_bandpass.py
+	python3 tests/validate_bandpass.py
  
 
 # Plot raw (MIT-BIH) ECG data
@@ -47,3 +49,12 @@ plot-raw-py:
 # Clean build and results
 clean:
 	rm -rf $(BUILD_DIR)/*.o $(BUILD_DIR)/* $(RESULTS_DIR)/*.dat
+
+# 3. Run bandpass test on WFDB record 201 using libwfdb
+test-wfdb-bandpass:
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(TEST_DIR)/test_bandpass.c src/qrs_detector.c -Iincludes -I$(WFDB_INC) -L$(WFDB_LIB) -lwfdb -lm -o $(BUILD_DIR)/test_bandpass
+	LD_LIBRARY_PATH=$(WFDB_LIB) ./$(BUILD_DIR)/test_bandpass
+
+
+

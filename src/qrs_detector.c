@@ -69,9 +69,37 @@ void bandpass_filter(double* input, double* output, int input_len, int filter_le
             }
         }
     }
-
+    double mean = 0.0, max_val = 0.0;
+    for (int i = 0; i < input_len; i++) {
+        mean += output[i];
+    }
+    mean /= input_len;
+    for (int i = 0; i < input_len; i++) {
+        output[i] -= mean;
+        if (fabs(output[i]) > max_val) {
+            max_val = fabs(output[i]);
+        }
+    }
+    if (max_val != 0.0) {
+        for (int i = 0; i < input_len; i++) {
+            output[i] /= max_val;
+        }
+    }
     // Clean up
     free(h_low_f2);
     free(h_low_f1);
     free(h_band);
+}
+
+void differentiate_signal(double* input, double* output, int len) {
+    // Assumes fs = 360 Hz and uses the derivative coefficients from Pan-Tompkins paper
+    // y(nT) = [2x(nT) + x(nT-T) - x(nT-3T) - 2x(nT-4T)] / 8T
+    for (int i = 4; i < len; i++) {
+        output[i] = (2 * input[i] + input[i - 1] - input[i - 3] - 2 * input[i - 4]) / 8.0;
+    }
+
+    // Set first few samples to 0 since they don't have enough history
+    for (int i = 0; i < 4; i++) {
+        output[i] = 0.0;
+    }
 }
