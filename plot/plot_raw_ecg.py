@@ -2,8 +2,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 # Load ECG and annotations
-ecg = pd.read_csv('data/100.csv')
-ann = pd.read_csv('data/100.ann.csv')
+ecg = pd.read_csv('data/203.csv')
+ann = pd.read_csv('data/203.ann.csv')
 
 # Plot ECG signal
 plt.figure(figsize=(12, 4))
