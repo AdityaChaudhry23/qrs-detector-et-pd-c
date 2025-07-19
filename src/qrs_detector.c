@@ -4,6 +4,7 @@
 #include <stddef.h>
 
 #define PI 3.14159265359
+#define REFRACTORY_PERIOD 36  // ~100 ms at 360 Hz
 
 void bandpass_filter(double* input, double* output, int input_len, int filter_len, double fs) {
     double f1 = 5.0;   // Low cutoff
@@ -140,5 +141,39 @@ int moving_window_integration(const double *input,
         output[i] = sum / window_size;
     }
 
+    return 0;
+}
+
+int detect_qrs_peaks(const double* signal, int* qrs_locs, size_t len, size_t* num_peaks) {
+    if (!signal || !qrs_locs || !num_peaks || len == 0) return -1;
+
+    double threshold1 = 0.0, threshold2 = 0.0;
+    double signal_peak = 0.0, noise_peak = 0.0;
+    size_t last_qrs_index = 0;
+    size_t peak_count = 0;
+
+    for (size_t i = 1; i < len - 1; ++i) {
+        // Local maximum detection
+        if (signal[i] > signal[i-1] && signal[i] > signal[i+1]) {
+            double peak = signal[i];
+
+            if (peak > threshold1) {
+                // Check refractory period
+                if (peak_count == 0 || (i - last_qrs_index) > REFRACTORY_PERIOD) {
+                    qrs_locs[peak_count++] = (int)i;
+                    last_qrs_index = i;
+                    signal_peak = 0.125 * peak + 0.875 * signal_peak;  // Update SPKI
+                }
+            } else {
+                noise_peak = 0.125 * peak + 0.875 * noise_peak;  // Update NPKI
+            }
+
+            // Adaptive thresholds
+            threshold1 = noise_peak + 0.25 * (signal_peak - noise_peak);
+            threshold2 = 0.5 * threshold1;
+        }
+    }
+
+    *num_peaks = peak_count;
     return 0;
 }

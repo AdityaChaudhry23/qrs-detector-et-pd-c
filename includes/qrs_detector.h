@@ -17,6 +17,7 @@ int derivative_filter(const double *input,
                       size_t        len);
 int squaring_function(const double *input, double *output, size_t len);
 int moving_window_integration(const double *input, double *output, size_t len, size_t window_size);
+int detect_qrs_peaks(const double* signal, int* qrs_locs, size_t len, size_t* num_peaks);
 
 
 #endif  // QRS_DETECTOR_H

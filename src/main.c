@@ -3,6 +3,7 @@
 #include <string.h>
 #include <wfdb/wfdb.h>
 #include "qrs_detector.h"
+#include <stddef.h>
 
 #define FILTER_LEN 201
 #define FS 360.0  // Sampling frequency (Hz) for MIT-BIH
@@ -113,6 +114,31 @@ int main() {
     fwrite(integrated_ecg, sizeof(double), nsamp, fmwi);
     fclose(fmwi);
     printf("Integrated ECG written to results/integrated_ecg.bin\n");
+        // QRS Peak Detection
+    int* qrs_locs = malloc(sizeof(int) * nsamp);
+    size_t num_peaks = 0;
+
+    if (!qrs_locs) {
+        fprintf(stderr, "Memory allocation failed for qrs_locs\n");
+        goto cleanup;
+    }
+
+    if (detect_qrs_peaks(integrated_ecg, qrs_locs, nsamp, &num_peaks) != 0) {
+        fprintf(stderr, "QRS peak detection failed\n");
+        goto cleanup;
+    }
+
+    FILE* fpeaks = fopen("results/qrs_locs.txt", "w");
+    if (!fpeaks) {
+        perror("fopen for qrs_locs.txt");
+        goto cleanup;
+    }
+
+    for (size_t i = 0; i < num_peaks; ++i) {
+        fprintf(fpeaks, "%d\n", qrs_locs[i]);
+    }
+    fclose(fpeaks);
+    printf("QRS peak indices written to results/qrs_locs.txt\n");
     cleanup:
         free(v);
         free(raw_ecg);
@@ -120,6 +146,7 @@ int main() {
         free(derivative_ecg);
         free(squared_ecg);
         free(integrated_ecg);
+        free(qrs_locs);
         return 0;
 
 }
