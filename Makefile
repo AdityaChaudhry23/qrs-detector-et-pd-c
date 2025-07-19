@@ -56,4 +56,13 @@ plot-stage-5:
 
 test-100:
 	@python3 tests/test_100.py
+
+
+
+test-all: build/qrs_detector.o
+	$(CC) src/testing.c build/qrs_detector.o -o build/tester -Iincludes -Lexternal/wfdb/include -Lexternal/wfdb/lib -lwfdb -lm
+	LD_LIBRARY_PATH=external/wfdb/lib ./build/tester
+	@python3 tests/test_all.py
+
+
 .PHONY: all clean run

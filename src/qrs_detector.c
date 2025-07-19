@@ -5,6 +5,7 @@
 
 #define PI 3.14159265359
 #define REFRACTORY_PERIOD 36  // ~100 ms at 360 Hz
+#define MAX_RR_HISTORY 8
 
 void bandpass_filter(double* input, double* output, int input_len, int filter_len, double fs) {
     double f1 = 5.0;   // Low cutoff
@@ -147,30 +148,85 @@ int moving_window_integration(const double *input,
 int detect_qrs_peaks(const double* signal, int* qrs_locs, size_t len, size_t* num_peaks) {
     if (!signal || !qrs_locs || !num_peaks || len == 0) return -1;
 
-    double threshold1 = 0.0, threshold2 = 0.0;
-    double signal_peak = 0.0, noise_peak = 0.0;
-    size_t last_qrs_index = 0;
+    double SPKI = 0.0;      // Signal peak integration
+    double NPKI = 0.0;      // Noise peak integration
+    double THRESHOLD_I1 = 0.0;
+    double THRESHOLD_I2 = 0.0;
+    int last_qrs = -REFRACTORY_PERIOD;  // So first detection can happen early
+
     size_t peak_count = 0;
 
+    // Store RR intervals to calculate average
+    int rr_intervals[MAX_RR_HISTORY] = {0};
+    int rr_index = 0;
+    int rr_mean = 0;
+
     for (size_t i = 1; i < len - 1; ++i) {
-        // Local maximum detection
-        if (signal[i] > signal[i-1] && signal[i] > signal[i+1]) {
+        // --- Local peak ---
+        if (signal[i] > signal[i - 1] && signal[i] > signal[i + 1]) {
             double peak = signal[i];
 
-            if (peak > threshold1) {
-                // Check refractory period
-                if (peak_count == 0 || (i - last_qrs_index) > REFRACTORY_PERIOD) {
+            // Check refractory period (100ms)
+            if ((int)i - last_qrs > REFRACTORY_PERIOD) {
+                if (peak > THRESHOLD_I1) {
+                    // Valid QRS
                     qrs_locs[peak_count++] = (int)i;
-                    last_qrs_index = i;
-                    signal_peak = 0.125 * peak + 0.875 * signal_peak;  // Update SPKI
+                    last_qrs = (int)i;
+
+                    SPKI = 0.125 * peak + 0.875 * SPKI;
+
+                    // Update RR interval
+                    if (peak_count > 1) {
+                        int rr = qrs_locs[peak_count - 1] - qrs_locs[peak_count - 2];
+                        rr_intervals[rr_index++ % MAX_RR_HISTORY] = rr;
+
+                        int rr_sum = 0, valid = 0;
+                        for (int j = 0; j < MAX_RR_HISTORY; ++j) {
+                            if (rr_intervals[j] > 0) {
+                                rr_sum += rr_intervals[j];
+                                valid++;
+                            }
+                        }
+                        if (valid > 0) rr_mean = rr_sum / valid;
+                    }
+
+                } else {
+                    // Noise peak
+                    NPKI = 0.125 * peak + 0.875 * NPKI;
                 }
-            } else {
-                noise_peak = 0.125 * peak + 0.875 * noise_peak;  // Update NPKI
+
+                // Update thresholds dynamically
+                THRESHOLD_I1 = NPKI + 0.25 * (SPKI - NPKI);
+                THRESHOLD_I2 = 0.5 * THRESHOLD_I1;
+            }
+        }
+
+        // --- Search-back logic (missed peak recovery) ---
+        if ((int)i - last_qrs > 1.66 * rr_mean && rr_mean > 0) {
+            // Search for a missed peak in the recent window
+            int search_start = last_qrs + REFRACTORY_PERIOD;
+            int search_end = i;
+
+            double max_peak = 0.0;
+            int max_index = -1;
+
+            for (int j = search_start; j < search_end && j < (int)len - 1; ++j) {
+                if (signal[j] > signal[j - 1] && signal[j] > signal[j + 1]) {
+                    if (signal[j] > max_peak && signal[j] > THRESHOLD_I2) {
+                        max_peak = signal[j];
+                        max_index = j;
+                    }
+                }
             }
 
-            // Adaptive thresholds
-            threshold1 = noise_peak + 0.25 * (signal_peak - noise_peak);
-            threshold2 = 0.5 * threshold1;
+            if (max_index != -1) {
+                qrs_locs[peak_count++] = max_index;
+                last_qrs = max_index;
+                SPKI = 0.25 * signal[max_index] + 0.75 * SPKI;
+
+                THRESHOLD_I1 = NPKI + 0.25 * (SPKI - NPKI);
+                THRESHOLD_I2 = 0.5 * THRESHOLD_I1;
+            }
         }
     }
 

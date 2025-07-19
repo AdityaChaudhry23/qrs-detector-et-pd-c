@@ -11,7 +11,7 @@
 int main() {
     // Set path for WFDB record search
     setwfdb("data");
-    char record_name[] = "100";
+    char record_name[] = "102";
     const char* result_path = "results/filtered_ecg.bin";
     const char* derivative_path = "results/derivative_ecg.bin";
     const char* square_path = "results/squared_ecg.bin";

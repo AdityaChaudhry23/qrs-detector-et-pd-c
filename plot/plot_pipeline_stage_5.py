@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import wfdb
 
 # --- Paths ---
-RECORD_PATH     = "data/100"
+RECORD_PATH     = "data/102"
 FILTERED_BIN    = "results/filtered_ecg.bin"
 DERIVATIVE_BIN  = "results/derivative_ecg.bin"
 SQUARED_BIN     = "results/squared_ecg.bin"
