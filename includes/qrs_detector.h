@@ -16,5 +16,7 @@ int derivative_filter(const double *input,
                       double       *output,
                       size_t        len);
 int squaring_function(const double *input, double *output, size_t len);
+int moving_window_integration(const double *input, double *output, size_t len, size_t window_size);
+
 
 #endif  // QRS_DETECTOR_H

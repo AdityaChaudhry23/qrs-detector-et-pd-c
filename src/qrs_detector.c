@@ -118,3 +118,27 @@ int squaring_function(const double *input, double *output, size_t len)
 
     return 0;
 }
+
+int moving_window_integration(const double *input,
+                               double       *output,
+                               size_t        len,
+                               size_t        window_size)
+{
+    if (!input || !output || len == 0 || window_size == 0) return -1;
+
+    double sum = 0.0;
+
+    // Pre-fill the sum for the first window
+    for (size_t i = 0; i < window_size && i < len; ++i)
+        sum += input[i];
+
+    for (size_t i = 0; i < len; ++i) {
+        if (i >= window_size) {
+            sum -= input[i - window_size];
+            sum += input[i];
+        }
+        output[i] = sum / window_size;
+    }
+
+    return 0;
+}

@@ -47,4 +47,8 @@ plot-stage-3:
 	@echo "Plotting raw, filtered, and derivative ECG signals..."
 	@python3 plot/plot_pipeline_stage_3.py
 
+plot-stage-4:
+	@echo "Plotting raw, filtered,derivative and integrated ECG signals..."
+	@python3 plot/plot_pipeline_stage_4.py
+
 .PHONY: all clean run

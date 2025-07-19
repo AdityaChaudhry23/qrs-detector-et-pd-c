@@ -92,13 +92,34 @@ int main() {
     fwrite(squared_ecg, sizeof(double), nsamp, fsq);
     fclose(fsq);
     printf("Squared ECG written to %s\n", square_path);
+    // Moving Window Integration
+    double* integrated_ecg = malloc(sizeof(double) * total_samples);
+    if (!integrated_ecg) {
+        fprintf(stderr, "Memory allocation failed for integrated_ecg\n");
+        goto cleanup;
+    }
 
-cleanup:
-    free(v);
-    free(raw_ecg);
-    free(filtered_ecg);
-    free(derivative_ecg);
-    free(squared_ecg);
+    size_t mwi_window = 30;  // ~80 ms at 360 Hz
+    if (moving_window_integration(squared_ecg, integrated_ecg, nsamp, mwi_window) != 0) {
+        fprintf(stderr, "Moving window integration failed\n");
+        goto cleanup;
+    }
 
-    return 0;
+    FILE* fmwi = fopen("results/integrated_ecg.bin", "wb");
+    if (!fmwi) {
+        perror("fopen for integrated_ecg.bin");
+        goto cleanup;
+    }
+    fwrite(integrated_ecg, sizeof(double), nsamp, fmwi);
+    fclose(fmwi);
+    printf("Integrated ECG written to results/integrated_ecg.bin\n");
+    cleanup:
+        free(v);
+        free(raw_ecg);
+        free(filtered_ecg);
+        free(derivative_ecg);
+        free(squared_ecg);
+        free(integrated_ecg);
+        return 0;
+
 }
