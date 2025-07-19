@@ -12,6 +12,9 @@ void bandpass_filter(double* input,
                      int input_len,
                      int filter_len,
                      double fs);
-void differentiate_signal(double* input, double* output, int len);
+int derivative_filter(const double *input,
+                      double       *output,
+                      size_t        len);
+int squaring_function(const double *input, double *output, size_t len);
 
 #endif  // QRS_DETECTOR_H

@@ -39,5 +39,9 @@ plot-raw-and-filtered:
 	@echo "Plotting raw and filtered ECG signals..."
 	@python3 plot/plot_raw_and_filtered.py
 
+plot-raw-filtered-derivative:
+	@echo "Plotting raw, filtered, and derivative ECG signals..."
+	@python3 plot/plot_raw_filtered_and_derivative.py
+
 
 .PHONY: all clean run

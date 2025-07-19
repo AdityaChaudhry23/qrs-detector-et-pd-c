@@ -107,3 +107,14 @@ int derivative_filter(const double *input,
 
     return 0;                                             /* success     */
 }
+
+int squaring_function(const double *input, double *output, size_t len)
+{
+    if (!input || !output || len == 0) return -1;
+
+    for (size_t i = 0; i < len; ++i) {
+        output[i] = input[i] * input[i];
+    }
+
+    return 0;
+}
