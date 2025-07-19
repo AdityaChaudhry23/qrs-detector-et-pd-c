@@ -99,4 +99,5 @@ int main(void)
 cleanup:
     free(raw); free(bp); free(der);
     return 0;
+    printf("Hello");
 }
